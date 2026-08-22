@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Мой дневник</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Patrick+Hand&display=swap');
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #6b4a2f;
+    background-image:
+      radial-gradient(circle at 20% 20%, rgba(255,255,255,0.03), transparent 40%),
+      linear-gradient(135deg, #7a5535, #5a3d24);
+    font-family: 'Patrick Hand', cursive;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .desk {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    perspective: 2000px;
+  }
+
+  .notebook {
+    position: relative;
+    width: min(92vw, 780px);
+    height: min(85vh, 1000px);
+    display: flex;
+  }
+
+  /* stitched binding, like an old sewn notebook, running down the
+     middle — the crease between the left and right page */
+  .binding {
+    position: absolute;
+    left: 50%;
+    top: 6px;
+    bottom: 6px;
+    width: 10px;
+    transform: translateX(-50%);
+    z-index: 20;
+    pointer-events: none;
+    background-image:
+      repeating-linear-gradient(
+        to bottom,
+        #e7dcb8 0px, #e7dcb8 7px,
+        transparent 7px, transparent 15px
+      );
+    background-position: center top;
+    background-size: 3px 15px;
+    background-repeat: repeat-y;
+    box-shadow:
+      -3px 0 5px rgba(0,0,0,0.18),
+       3px 0 5px rgba(0,0,0,0.18);
+  }
+  .binding::before,
+  .binding::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 6px;
+    background-image: repeating-linear-gradient(
+      to bottom,
+      #cbb98c 0px, #cbb98c 2px,
+      transparent 2px, transparent 15px
+    );
+  }
+  .binding::before {
+    left: -3px;
+    transform: skewY(18deg);
+  }
+  .binding::after {
+    right: -3px;
+    transform: skewY(-18deg);
+  }
+
+  .book {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #4a3320;
+    border-radius: 10px;
+    box-shadow:
+      0 30px 60px rgba(0,0,0,0.55),
+      0 8px 20px rgba(0,0,0,0.4);
+    padding: 22px;
+  }
+
+  .pages-wrap {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #f7f1de;
+  }
+
+  .page {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        transparent,
+        transparent 17px,
+        #c9d8e8 18px
+      ),
+      repeating-linear-gradient(
+        to right,
+        transparent,
+        transparent 17px,
+        #c9d8e8 18px
+      ),
+      #f9f4e3;
+    padding: 36px 36px 36px 36px;
+    display: none;
+    flex-direction: column;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    touch-action: pan-y;
+    user-select: none;
+  }
+  .page.active {
+    display: flex;
+    opacity: 1;
+  }
+  .page::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    box-shadow: inset 0 0 40px rgba(120,90,50,0.15);
+    pointer-events: none;
+  }
+
+  .page-date {
+    font-family: 'Caveat', cursive;
+    font-weight: 700;
+    font-size: 17px;
+    line-height: 18px;
+    height: 18px;
+    color: #6b4a2f;
+    margin: 0 0 18px 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    width: 100%;
+    padding: 0;
+    user-select: text;
+    position: relative;
+    z-index: 2;
+  }
+  .page-date::placeholder {
+    color: #b0a488;
+  }
+
+  .page-cols {
+    flex: 1;
+    display: flex;
+    align-items: stretch;
+    gap: 56px;
+    min-height: 0;
+  }
+
+  .page-text {
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    outline: none;
+    font-family: 'Caveat', cursive;
+    font-size: 17px;
+    line-height: 18px;
+    color: #2e2a22;
+    overflow: hidden;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  /* the right-hand column starts two grid cells higher than the left one */
+  .page-text[data-col="right"] {
+    margin-top: -36px;
+  }
+  .page-text:empty::before {
+    content: attr(data-placeholder);
+    color: #9a8f78;
+  }
+
+  /* flip animation layer: represents just the single half-page ("leaf") that is
+     turning, hinged at the spine — not the whole spread. */
+  .flip {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 50%;
+    height: 100%;
+    transform-style: preserve-3d;
+    transform-origin: left center;
+    transform: rotateY(0deg);
+    z-index: 10;
+    pointer-events: none;
+  }
+  .flip.animated {
+    transition: transform 0.45s cubic-bezier(.4,.1,.2,1);
+  }
+  .flip-face {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    overflow: hidden;
+    backface-visibility: hidden;
+    background:
+      repeating-linear-gradient(to bottom, transparent, transparent 17px, #c9d8e8 18px),
+      repeating-linear-gradient(to right, transparent, transparent 17px, #c9d8e8 18px),
+      #f9f4e3;
+    box-shadow: 0 0 25px rgba(0,0,0,0.25);
+  }
+  .flip-face.back {
+    transform: rotateY(180deg);
+  }
+  .flip-content {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 36px 36px 36px 36px;
+    font-family: 'Caveat', cursive;
+    font-size: 17px;
+    line-height: 18px;
+    color: #2e2a22;
+    white-space: pre-wrap;
+  }
+
+  .controls {
+    position: absolute;
+    bottom: 14px;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    z-index: 30;
+  }
+
+  .btn {
+    background: #4a3320;
+    color: #f7f1de;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-family: 'Patrick Hand', cursive;
+    font-size: 16px;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+    transition: transform 0.1s ease, background 0.2s ease;
+  }
+  .btn:hover { background: #5f4429; }
+  .btn:active { transform: scale(0.95); }
+  .btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  .page-indicator {
+    font-family: 'Patrick Hand', cursive;
+    color: #4a3320;
+    font-size: 15px;
+    min-width: 70px;
+    text-align: center;
+    background: rgba(255,255,255,0.5);
+    padding: 6px 10px;
+    border-radius: 6px;
+  }
+
+  .icon-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 20px;
+    color: #4a3320;
+    padding: 4px 8px;
+  }
+  .icon-btn:hover { transform: scale(1.1); }
+
+  .topbar {
+    position: absolute;
+    top: 26px;
+    right: 18px;
+    z-index: 30;
+    display: flex;
+    gap: 10px;
+  }
+
+  @media (max-width: 600px) {
+    .notebook { width: 96vw; height: 88vh; }
+    /* On narrow screens a two-column spread becomes two cramped strips, so
+       each column becomes its own full-width "page" instead — flipping
+       moves through left col → right col → next entry's left col, etc. */
+    .binding { display: none; }
+    .page-cols {
+      display: block;
+      overflow-y: auto;
+    }
+    .page-text {
+      display: block;
+      flex: none;
+      height: auto;
+      min-height: 18px;
+    }
+    .page-text[data-col="right"] {
+      margin-top: 18px;
+    }
+    .flip {
+      width: 100%;
+      left: 0;
+    }
+    /* Each column is its own "page" on narrow screens — only the column
+       matching the page's current view is shown at a time. */
+    .page[data-col-view="left"] .page-text[data-col="right"] {
+      display: none;
+    }
+    .page[data-col-view="right"] .page-text[data-col="left"] {
+      display: none;
+    }
+    .page[data-col-view="right"] .page-text[data-col="right"] {
+      margin-top: 0;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="desk">
+  <div class="notebook">
+    <div class="binding"></div>
+    <div class="book">
+      <div class="pages-wrap" id="pagesWrap">
+        <!-- pages injected here -->
+        <div class="flip" id="flipLayer" style="display:none;">
+          <div class="flip-face front" id="flipFront"></div>
+          <div class="flip-face back" id="flipBack"></div>
+        </div>
+      </div>
+
+      <div class="topbar">
+        <button class="icon-btn" id="newPageBtn" title="Новая страница">➕</button>
+        <button class="icon-btn" id="deletePageBtn" title="Удалить страницу">🗑️</button>
+      </div>
+
+      <div class="controls">
+        <button class="btn" id="prevBtn">← Назад</button>
+        <span class="page-indicator" id="pageIndicator">1 / 1</span>
+        <button class="btn" id="nextBtn">Вперёд →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const STORAGE_KEY = 'diary-notebook-pages-v1';
+  const pagesWrap = document.getElementById('pagesWrap');
+  const flipLayer = document.getElementById('flipLayer');
+  const flipFront = document.getElementById('flipFront');
+  const flipBack = document.getElementById('flipBack');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const newPageBtn = document.getElementById('newPageBtn');
+  const deletePageBtn = document.getElementById('deletePageBtn');
+  const pageIndicator = document.getElementById('pageIndicator');
+
+  function todayStr() {
+    const d = new Date();
+    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  function loadPages() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length) {
+          // migrate old single-flow `text` field into the left column
+          return parsed.map(p => ({
+            date: p.date || '',
+            textLeft: p.textLeft !== undefined ? p.textLeft : (p.text || ''),
+            textRight: p.textRight !== undefined ? p.textRight : ''
+          }));
+        }
+      }
+    } catch (e) {}
+    return [{ date: todayStr(), textLeft: '', textRight: '' }];
+  }
+
+  function savePages() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(pages));
+  }
+
+  let pages = loadPages();
+  let current = 0;
+  let currentCol = 'left'; // which column is the "active page" on mobile
+  let animating = false;
+
+  const isMobileLayout = () => window.matchMedia('(max-width: 600px)').matches;
+
+  // On mobile, every column of every entry is its own navigable "page":
+  // unit index = entryIndex*2 + (0 for left, 1 for right).
+  function mobileTotalUnits() { return pages.length * 2; }
+  function mobileUnitIndex(entryIdx, col) { return entryIdx * 2 + (col === 'right' ? 1 : 0); }
+  function mobileUnitFromIndex(i) { return { entryIdx: Math.floor(i / 2), col: i % 2 === 0 ? 'left' : 'right' }; }
+
+  const INSERTING_INPUT_TYPES = new Set([
+    'insertText', 'insertParagraph', 'insertLineBreak',
+    'insertFromPaste', 'insertCompositionText', 'insertReplacementText',
+    'insertFromDrop'
+  ]);
+
+  // Blocks further typing once the column's text overflows its box (columns
+  // have a fixed height on desktop, so text shouldn't just keep growing past
+  // the visible grid) — deletions and edits within the existing text still
+  // work as normal. Checked *before* the character lands (beforeinput),
+  // rather than reverting after the fact, so the field never flickers or
+  // fights the caret.
+  function bindColumn(el, idx, field) {
+    el.addEventListener('beforeinput', (e) => {
+      if (INSERTING_INPUT_TYPES.has(e.inputType) && el.scrollHeight > el.clientHeight + 1) {
+        e.preventDefault();
+      }
+    });
+    el.addEventListener('input', () => {
+      pages[idx][field] = el.innerText.replace(/\n$/, '');
+      savePages();
+    });
+  }
+
+  function renderAll() {
+    // remove existing .page elements (keep flipLayer)
+    [...pagesWrap.querySelectorAll('.page')].forEach(el => el.remove());
+    pages.forEach((p, idx) => {
+      const div = document.createElement('div');
+      div.className = 'page' + (idx === current ? ' active' : '');
+      div.dataset.index = idx;
+      div.dataset.colView = idx === current ? currentCol : 'left';
+      div.innerHTML =
+        '<input class="page-date" type="text" placeholder="Дата..." value="' + escapeAttr(p.date) + '">' +
+        '<div class="page-cols">' +
+          '<div class="page-text" data-col="left" contenteditable="true" data-placeholder="Пиши здесь свои мысли...">' + escapeHtml(p.textLeft) + '</div>' +
+          '<div class="page-text" data-col="right" contenteditable="true" data-placeholder="">' + escapeHtml(p.textRight) + '</div>' +
+        '</div>';
+      pagesWrap.insertBefore(div, flipLayer);
+      const leftEl = div.querySelector('.page-text[data-col="left"]');
+      bindColumn(leftEl, idx, 'textLeft');
+      const rightEl = div.querySelector('.page-text[data-col="right"]');
+      bindColumn(rightEl, idx, 'textRight');
+      const dateInput = div.querySelector('.page-date');
+      dateInput.addEventListener('input', () => {
+        pages[idx].date = dateInput.value;
+        savePages();
+      });
+    });
+    updateControls();
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  function escapeAttr(str) {
+    return escapeHtml(str).replace(/"/g, '&quot;');
+  }
+
+  function updateControls() {
+    if (isMobileLayout()) {
+      const unit = mobileUnitIndex(current, currentCol);
+      prevBtn.disabled = unit === 0 || animating;
+      nextBtn.disabled = unit === mobileTotalUnits() - 1 || animating;
+      pageIndicator.textContent = (unit + 1) + ' / ' + mobileTotalUnits();
+    } else {
+      prevBtn.disabled = current === 0 || animating;
+      nextBtn.disabled = current === pages.length - 1 || animating;
+      pageIndicator.textContent = (current + 1) + ' / ' + pages.length;
+    }
+    deletePageBtn.disabled = pages.length <= 1;
+  }
+
+  function getPageEl(idx) {
+    return pagesWrap.querySelector('.page[data-index="' + idx + '"]');
+  }
+
+  // Positions the flip layer over just the half-page ("leaf") that is turning,
+  // hinged at the spine, and fills the front face with the real content of
+  // that half (shifted so its background grid lines up exactly with the
+  // static page underneath). The back face is left as blank lined paper,
+  // since it is only ever seen edge-on / briefly before the static page
+  // (already swapped to the target content) is revealed underneath.
+  //
+  // `mobileCol`, when given, restricts the front face to just that one
+  // column's content — on mobile each column is its own full-width "page".
+  function setupFlipFaces(direction, currentEl, mobileCol) {
+    const fullWidth = pagesWrap.clientWidth;
+    const isNext = direction === 'next';
+    const mobile = isMobileLayout();
+    // On narrow screens each "page" is shown full-width (no spread), so the
+    // whole page is the leaf that turns, hinged at its outer spine-side edge.
+    const half = mobile ? fullWidth : fullWidth / 2;
+    const windowLeft = isNext ? fullWidth - half : 0;
+
+    flipLayer.style.left = windowLeft + 'px';
+    flipLayer.style.width = half + 'px';
+    flipLayer.style.transformOrigin = isNext ? 'left center' : 'right center';
+
+    let contentHtml;
+    if (mobile && mobileCol) {
+      const dateHtml = currentEl.querySelector('.page-date').outerHTML;
+      const colHtml = currentEl.querySelector('.page-text[data-col="' + mobileCol + '"]').outerHTML;
+      contentHtml = dateHtml + '<div class="page-cols">' + colHtml + '</div>';
+    } else {
+      contentHtml = currentEl.innerHTML;
+    }
+
+    flipFront.innerHTML =
+      '<div class="flip-content" style="width:' + fullWidth + 'px; left:' + (-windowLeft) + 'px;">' +
+      contentHtml +
+      '</div>';
+    flipBack.innerHTML = '';
+  }
+
+  // Resolves what "next"/"prev" targets: on mobile that's the next/previous
+  // column (possibly of a different entry); on desktop it's always the
+  // next/previous entry (both its columns shown together).
+  function resolveTarget(direction) {
+    if (isMobileLayout()) {
+      const unit = mobileUnitIndex(current, currentCol);
+      const targetUnit = direction === 'next' ? unit + 1 : unit - 1;
+      if (targetUnit < 0 || targetUnit >= mobileTotalUnits()) return null;
+      return mobileUnitFromIndex(targetUnit);
+    }
+    const targetIndex = direction === 'next' ? current + 1 : current - 1;
+    if (targetIndex < 0 || targetIndex >= pages.length) return null;
+    return { entryIdx: targetIndex, col: 'left' };
+  }
+
+  function flip(direction) {
+    if (animating) return;
+    const target = resolveTarget(direction);
+    if (!target) return;
+
+    animating = true;
+    updateControls();
+
+    const currentEl = getPageEl(current);
+    const targetEl = getPageEl(target.entryIdx);
+    const sameEntry = target.entryIdx === current;
+
+    setupFlipFaces(direction, currentEl, currentCol);
+
+    flipLayer.classList.remove('animated');
+    flipLayer.style.transform = 'rotateY(0deg)';
+    flipLayer.style.display = 'block';
+    void flipLayer.offsetWidth;
+
+    if (sameEntry) {
+      currentEl.dataset.colView = target.col;
+    } else {
+      currentEl.classList.remove('active');
+      targetEl.classList.add('active');
+      targetEl.dataset.colView = target.col;
+    }
+
+    requestAnimationFrame(() => {
+      flipLayer.classList.add('animated');
+      flipLayer.style.transform = 'rotateY(' + (direction === 'next' ? -180 : 180) + 'deg)';
+    });
+
+    const onEnd = () => {
+      flipLayer.removeEventListener('transitionend', onEnd);
+      flipLayer.classList.remove('animated');
+      flipLayer.style.display = 'none';
+      flipLayer.style.transform = 'rotateY(0deg)';
+      current = target.entryIdx;
+      currentCol = target.col;
+      animating = false;
+      updateControls();
+    };
+    flipLayer.addEventListener('transitionend', onEnd);
+  }
+
+  prevBtn.addEventListener('click', () => flip('prev'));
+  nextBtn.addEventListener('click', () => flip('next'));
+
+  // --- drag / swipe to flip (mouse, trackpad, touch) ---
+  let pointer = null;
+  const DRAG_THRESHOLD = 10;
+  const COMMIT_THRESHOLD = 0.3;
+
+  pagesWrap.addEventListener('pointerdown', (e) => {
+    if (animating) return;
+    pointer = {
+      id: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      dragging: false,
+      direction: null,
+      target: null,
+      sameEntry: false,
+      progress: 0,
+      width: pagesWrap.clientWidth || 1
+    };
+  });
+
+  window.addEventListener('pointermove', (e) => {
+    if (!pointer || e.pointerId !== pointer.id) return;
+    const dx = e.clientX - pointer.startX;
+    const dy = e.clientY - pointer.startY;
+
+    if (!pointer.dragging) {
+      if (Math.abs(dx) < DRAG_THRESHOLD || Math.abs(dx) < Math.abs(dy)) return;
+      const direction = dx < 0 ? 'next' : 'prev';
+      const target = resolveTarget(direction);
+      if (!target) {
+        pointer = null;
+        return;
+      }
+      pointer.dragging = true;
+      pointer.direction = direction;
+      pointer.target = target;
+      pointer.sameEntry = target.entryIdx === current;
+      animating = true;
+
+      const currentEl = getPageEl(current);
+      const targetEl = getPageEl(target.entryIdx);
+      setupFlipFaces(direction, currentEl, currentCol);
+      flipLayer.classList.remove('animated');
+      flipLayer.style.transform = 'rotateY(0deg)';
+      flipLayer.style.display = 'block';
+      if (pointer.sameEntry) {
+        currentEl.dataset.colView = target.col;
+      } else {
+        currentEl.classList.remove('active');
+        targetEl.classList.add('active');
+        targetEl.dataset.colView = target.col;
+      }
+    }
+
+    if (pointer.dragging) {
+      e.preventDefault();
+      const progress = Math.min(1, Math.abs(dx) / pointer.width);
+      const angle = pointer.direction === 'next' ? -180 * progress : 180 * progress;
+      flipLayer.style.transform = 'rotateY(' + angle + 'deg)';
+      pointer.progress = progress;
+    }
+  }, { passive: false });
+
+  function endDrag(e) {
+    if (!pointer || (e && e.pointerId !== pointer.id)) return;
+    if (!pointer.dragging) { pointer = null; return; }
+
+    const commit = pointer.progress > COMMIT_THRESHOLD;
+    const direction = pointer.direction;
+    const target = pointer.target;
+    const sameEntry = pointer.sameEntry;
+
+    flipLayer.classList.add('animated');
+    if (commit) {
+      flipLayer.style.transform = 'rotateY(' + (direction === 'next' ? -180 : 180) + 'deg)';
+    } else {
+      flipLayer.style.transform = 'rotateY(0deg)';
+      if (sameEntry) {
+        getPageEl(current).dataset.colView = currentCol;
+      } else {
+        getPageEl(current).classList.add('active');
+        getPageEl(target.entryIdx).classList.remove('active');
+      }
+    }
+
+    const onEnd = () => {
+      flipLayer.removeEventListener('transitionend', onEnd);
+      flipLayer.classList.remove('animated');
+      flipLayer.style.display = 'none';
+      flipLayer.style.transform = 'rotateY(0deg)';
+      if (commit) {
+        current = target.entryIdx;
+        currentCol = target.col;
+      }
+      animating = false;
+      pointer = null;
+      updateControls();
+    };
+    flipLayer.addEventListener('transitionend', onEnd);
+  }
+
+  window.addEventListener('pointerup', endDrag);
+  window.addEventListener('pointercancel', endDrag);
+
+  newPageBtn.addEventListener('click', () => {
+    pages.push({ date: todayStr(), textLeft: '', textRight: '' });
+    savePages();
+    const wasAnimating = animating;
+    renderAll();
+    // jump to new page without weird flip mid-animation
+    if (!wasAnimating) {
+      current = pages.length - 1;
+      currentCol = 'left';
+      renderAll();
+    }
+  });
+
+  deletePageBtn.addEventListener('click', () => {
+    if (pages.length <= 1) return;
+    if (!confirm('Удалить эту страницу?')) return;
+    pages.splice(current, 1);
+    if (current >= pages.length) current = pages.length - 1;
+    currentCol = 'left';
+    savePages();
+    renderAll();
+  });
+
+  renderAll();
+})();
+</script>
+
+</body>
+</html>
