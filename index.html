@@ -440,6 +440,10 @@
   // fights the caret.
   function bindColumn(el, idx, field) {
     el.addEventListener('beforeinput', (e) => {
+      // On mobile each column scrolls instead of being height-capped, so
+      // there's nothing to enforce there — and doing the check anyway risks
+      // silently swallowing every keystroke if height ever measures oddly.
+      if (isMobileLayout()) return;
       if (INSERTING_INPUT_TYPES.has(e.inputType) && el.scrollHeight > el.clientHeight + 1) {
         e.preventDefault();
       }
