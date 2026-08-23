@@ -581,6 +581,20 @@
 
   function renderDrawer() {
     drawerList.innerHTML = '';
+    if (isMobileLayout()) {
+      const activeUnit = mobileUnitIndex(current, currentCol);
+      for (let unit = 0; unit < mobileTotalUnits(); unit++) {
+        const { entryIdx, col } = mobileUnitFromIndex(unit);
+        const item = document.createElement('button');
+        item.className = 'drawer-item' + (unit === activeUnit ? ' active' : '');
+        item.innerHTML =
+          '<span class="num">' + (unit + 1) + '</span>' +
+          '<span class="date">' + escapeHtml(pages[entryIdx].date) + '</span>';
+        item.addEventListener('click', () => jumpToPage(entryIdx, col));
+        drawerList.appendChild(item);
+      }
+      return;
+    }
     pages.forEach((p, idx) => {
       const item = document.createElement('button');
       item.className = 'drawer-item' + (idx === current ? ' active' : '');
@@ -592,10 +606,11 @@
     });
   }
 
-  function jumpToPage(idx) {
-    if (animating || idx === current) { closeDrawer(); return; }
+  function jumpToPage(idx, col) {
+    const targetCol = col || 'left';
+    if (animating || (idx === current && targetCol === currentCol)) { closeDrawer(); return; }
     current = idx;
-    currentCol = 'left';
+    currentCol = targetCol;
     closeDrawer();
     renderAll();
   }
